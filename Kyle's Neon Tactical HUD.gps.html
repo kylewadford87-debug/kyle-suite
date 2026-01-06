@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kyle's Tactical GPS</title>
+    <style>
+        :root { --neon: #39ff14; --pink: #ff00ff; --bg: #000; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #000; color: var(--neon); font-family: 'Courier New', monospace; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        
+        .mirror-mode { transform: scaleX(-1); }
+        .app-container { width: 100%; max-width: 500px; text-align: center; padding: 20px; transition: transform 0.5s; }
+
+        /* HUD Readouts */
+        #speed { font-size: 9rem; font-weight: bold; text-shadow: 0 0 20px var(--neon); display: block; }
+        .unit { font-size: 1.5rem; color: #444; letter-spacing: 5px; margin-bottom: 20px; display: block; }
+
+        .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: rgba(255,255,255,0.03); padding: 20px; border-radius: 20px; border: 1px solid #222; }
+        .data-item { text-align: left; border-left: 2px solid var(--neon); padding-left: 10px; }
+        .label { font-size: 0.6rem; color: #444; text-transform: uppercase; }
+        .value { font-size: 0.9rem; color: #fff; font-weight: bold; }
+
+        /* Controls */
+        .controls { display: flex; gap: 10px; width: 100%; margin-top: 25px; }
+        .btn { flex: 1; padding: 18px; border-radius: 12px; border: 2px solid var(--neon); background: transparent; color: var(--neon); font-weight: bold; font-size: 0.8rem; cursor: pointer; text-transform: uppercase; }
+        .btn.active { background: var(--neon); color: #000; }
+        
+        #overlay { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
+        .status-tag { font-size: 0.7rem; color: #444; margin-top: 20px; letter-spacing: 2px; }
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+
+    <div id="overlay">
+        <h2 style="letter-spacing: 8px; color: var(--neon);">SATELLITE_UPLINK</h2>
+        <p style="color: #444; font-size: 0.7rem; margin-bottom: 30px;">AUTH_LEVEL: HIGH_ACCURACY_GPS</p>
+        <button class="btn" style="max-width: 300px;" onclick="initHUD()">ESTABLISH SAT-LINK</button>
+    </div>
+
+    <div class="app-container" id="hud-main">
+        <span id="speed">00</span>
+        <span class="unit">MPH</span>
+
+        <div class="data-grid">
+            <div class="data-item"><div class="label">Compass</div><div class="value" id="heading">000° N</div></div>
+            <div class="data-item"><div class="label">Altitude</div><div class="value" id="alt">0 FT</div></div>
+            <div class="data-item"><div class="label">Latitude</div><div class="value" id="lat">0.0000</div></div>
+            <div class="data-item"><div class="label">Longitude</div><div class="value" id="lon">0.0000</div></div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" id="m-btn" onclick="toggleMirror()">HUD MIRROR</button>
+            <button class="btn" style="border-color:var(--pink); color:var(--pink);" onclick="location.reload()">RESET</button>
+        </div>
+
+        <div class="status-tag">SIGNAL_STATUS: <span id="status" class="blink" style="color: red;">SEARCHING...</span></div>
+    </div>
+
+    <script>
+        // Theme Sync
+        const savedColor = localStorage.getItem('neon_theme');
+        if(savedColor) document.documentElement.style.setProperty('--neon', savedColor);
+
+        function initHUD() {
+            document.getElementById('overlay').style.display = 'none';
+            
+            if (!navigator.geolocation) {
+                alert("GPS Hardware Incompatible.");
+                return;
+            }
+
+            // Start High-Accuracy Watch
+            navigator.geolocation.watchPosition(
+                (pos) => {
+                    const c = pos.coords;
+                    
+                    // Speed Calculation (M/S to MPH)
+                    const speedVal = c.speed ? Math.round(c.speed * 2.23694) : 0;
+                    document.getElementById('speed').innerText = speedVal.toString().padStart(2, '0');
+                    
+                    // Data Updates
+                    document.getElementById('lat').innerText = c.latitude.toFixed(4);
+                    document.getElementById('lon').innerText = c.longitude.toFixed(4);
+                    document.getElementById('alt').innerText = c.altitude ? Math.round(c.altitude * 3.28084) + " FT" : "0 FT";
+                    
+                    // Compass Calculation
+                    if (c.heading !== null && !isNaN(c.heading)) {
+                        const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+                        const dirIndex = Math.round(c.heading / 45) % 8;
+                        document.getElementById('heading').innerText = Math.round(c.heading) + "° " + directions[dirIndex];
+                    }
+
+                    // Update Status
+                    const s = document.getElementById('status');
+                    s.innerText = "LOCKED";
+                    s.style.color = "var(--neon)";
+                    s.classList.remove('blink');
+                },
+                (err) => {
+                    let msg = "SIGNAL_ERROR";
+                    if(err.code == 1) msg = "PERM_DENIED (USE HTTPS)";
+                    document.getElementById('status').innerText = msg;
+                },
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            );
+        }
+
+        function toggleMirror() {
+            document.getElementById('hud-main').classList.toggle('mirror-mode');
+            document.getElementById('m-btn').classList.toggle('active');
+        }
+    </script>
+</body>
+</html>
